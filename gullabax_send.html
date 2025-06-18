@@ -11,6 +11,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // No need for getStorage here, we just use the URL directly for the img src
 
         // Global variables for Firebase access
         window.firebaseApp = null;
@@ -326,10 +327,15 @@
                     const docSnap = await getDoc(docRef);
 
                     if (docSnap.exists()) {
-                        const imageData = docSnap.data().imageData;
-                        receivedThumbnail.src = imageData;
-                        receivedThumbnail.style.display = 'block'; // Show the thumbnail
-                        showMessage("Thumbnail loaded.", false);
+                        const thumbnailData = docSnap.data();
+                        const imageUrl = thumbnailData.imageUrl; // Get the URL from Firestore
+                        if (imageUrl) {
+                            receivedThumbnail.src = imageUrl;
+                            receivedThumbnail.style.display = 'block'; // Show the thumbnail
+                            showMessage("Thumbnail loaded.", false);
+                        } else {
+                            showMessage("Thumbnail URL not found in database.", true);
+                        }
                     } else {
                         showMessage("Thumbnail not found.", true);
                         console.warn("No thumbnail document found for ID:", thumbnailId);
