@@ -11,11 +11,13 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js"; // Import Firebase Storage
 
         // Global variables for Firebase access
         window.firebaseApp = null;
         window.db = null;
         window.auth = null;
+        window.storage = null; // Add storage
         window.appId = null; // Will be set from projectId
 
         // Your web app's Firebase configuration - DIRECTLY EMBEDDED
@@ -47,6 +49,7 @@
                 window.firebaseApp = initializeApp(firebaseConfig);
                 window.db = getFirestore(window.firebaseApp);
                 window.auth = getAuth(window.firebaseApp);
+                window.storage = getStorage(window.firebaseApp); // Initialize Firebase Storage
 
                 // Authenticate user anonymously for public data access
                 await signInAnonymously(window.auth);
@@ -199,6 +202,7 @@
 
     <script type="module">
         import { collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js"; // Import Storage functions
 
         const photoUpload = document.getElementById('photoUpload');
         const uploadedThumbnail = document.getElementById('uploadedThumbnail');
@@ -232,30 +236,39 @@
         }
 
         /**
-         * Uploads the base64 image data to Firestore and generates the short link.
-         * @param {string} base64Image - The base64 encoded image data.
+         * Uploads the image file to Firebase Storage and its URL to Firestore, then generates the link.
+         * @param {File} imageFile - The image file object.
          */
-        async function uploadThumbnailAndGenerateLink(base64Image) {
+        async function uploadImageToStorageAndGenerateLink(imageFile) {
             // Wait for Firebase to be initialized if it's not already
-            if (!window.db || !window.appId) {
-                showMessage("Database not initialized. Please wait or refresh.", true);
-                // Potentially retry or add a loading state check
+            if (!window.db || !window.appId || !window.storage) {
+                showMessage("Firebase services not initialized. Please wait or refresh.", true);
                 return;
             }
 
             loadingSpinner.style.display = 'block'; // Show spinner
             hideMessage();
-            showMessage("Uploading thumbnail...", false);
+            showMessage("Uploading thumbnail to storage...", false);
 
             try {
-                // Collection path: /artifacts/{appId}/public/data/thumbnails
+                // 1. Upload image to Firebase Storage
+                // Storage path: /artifacts/{appId}/public/thumbnails/{unique_filename}
+                const storageRef = ref(window.storage, `artifacts/${window.appId}/public/thumbnails/${imageFile.name}_${Date.now()}`);
+                const uploadResult = await uploadBytes(storageRef, imageFile);
+                const imageUrl = await getDownloadURL(uploadResult.ref);
+
+                console.log("Image uploaded to Storage:", imageUrl);
+
+                // 2. Save image URL to Firestore
+                // Firestore collection path: /artifacts/{appId}/public/data/thumbnails
                 const thumbnailsCollectionRef = collection(window.db, 'artifacts', window.appId, 'public', 'data', 'thumbnails');
                 const docRef = await addDoc(thumbnailsCollectionRef, {
-                    imageData: base64Image,
+                    imageUrl: imageUrl, // Store the URL, not the base64 data
+                    originalFileName: imageFile.name,
                     timestamp: new Date()
                 });
 
-                console.log("Document written with ID: ", docRef.id);
+                console.log("Firestore document written with ID: ", docRef.id);
 
                 // Construct the link to the second page with the thumbnail ID
                 const sendPageUrl = new URL('gullabax_send.html', window.location.origin);
@@ -267,7 +280,7 @@
                 showMessage('Thumbnail uploaded and shorter link generated! You can copy and share it.', false);
 
             } catch (e) {
-                console.error("Error adding document to Firestore: ", e);
+                console.error("Error uploading image or adding document:", e);
                 showMessage("Failed to upload thumbnail. Please try again. Error: " + e.message, true);
             } finally {
                 loadingSpinner.style.display = 'none'; // Hide spinner
@@ -285,26 +298,21 @@
                     return;
                 }
 
-                // Check file size (e.g., 5MB limit for Base64 in Firestore document)
-                const MAX_FILE_SIZE_MB = 5;
-                if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-                    showMessage(`File size exceeds ${MAX_FILE_SIZE_MB}MB limit. Please upload a smaller image.`, true);
-                    return;
-                }
-
+                // Display a preview of the selected image immediately
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    const base64Image = e.target.result;
-                    uploadedThumbnail.src = base64Image;
+                    uploadedThumbnail.src = e.target.result;
                     uploadedThumbnail.style.display = 'block'; // Show the image
                     uploadPlaceholder.style.display = 'none'; // Hide the placeholder text
-
-                    uploadThumbnailAndGenerateLink(base64Image);
                 };
                 reader.onerror = function() {
-                    showMessage('Error reading file. Please try again.', true);
+                    showMessage('Error reading file for preview. Please try again.', true);
                 };
-                reader.readAsDataURL(file); // Read the file as a Data URL (base64)
+                reader.readAsDataURL(file); // Read for local preview
+
+                // Proceed with uploading the file to Firebase Storage
+                uploadImageToStorageAndGenerateLink(file);
+
             } else {
                 uploadedThumbnail.style.display = 'none'; // Hide the image
                 uploadPlaceholder.style.display = 'block'; // Show the placeholder
