@@ -9,24 +9,38 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global variables for Firebase access
         window.firebaseApp = null;
         window.db = null;
         window.auth = null;
-        window.appId = null; // Will be set from __app_id
+        window.appId = null; // Will be set from projectId
+
+        // Your web app's Firebase configuration - DIRECTLY EMBEDDED
+        const firebaseConfig = {
+            apiKey: "AIzaSyCNGOAnTyQ-z91is5nku_vKQMIXMsjH3sg",
+            authDomain: "ttaskk-a50e4.firebaseapp.com",
+            databaseURL: "https://ttaskk-a50e4-default-rtdb.firebaseio.com",
+            projectId: "ttaskk-a50e4",
+            storageBucket: "ttaskk-a50e4.appspot.com",
+            messagingSenderId: "213200371465",
+            appId: "1:213200371465:web:2cee76953abdc5d8049dd8",
+            measurementId: "G-8J99HLPT61"
+        };
 
         // Initialize Firebase and authenticate
         async function initializeFirebase() {
             try {
-                // Safely access __app_id and __firebase_config from the environment
-                window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+                // Set appId from the projectId in your firebaseConfig
+                window.appId = firebaseConfig.projectId;
 
-                if (Object.keys(firebaseConfig).length === 0) {
-                    console.error("Firebase configuration is missing or empty. Cannot initialize Firebase.");
+                if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
+                    console.error("Firebase configuration is missing or incomplete. Cannot initialize Firebase.");
+                    document.getElementById('messageBox').textContent = "Firebase configuration is missing. Please ensure the app is deployed correctly.";
+                    document.getElementById('messageBox').className = 'message-box bg-red-100 text-red-700 border-red-200';
+                    document.getElementById('messageBox').classList.remove('hidden');
                     return;
                 }
 
@@ -34,13 +48,9 @@
                 window.db = getFirestore(window.firebaseApp);
                 window.auth = getAuth(window.firebaseApp);
 
-                // Authenticate user
-                if (typeof __initial_auth_token !== 'undefined') {
-                    await signInWithCustomToken(window.auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(window.auth);
-                }
-                console.log("Firebase initialized and authenticated.");
+                // Authenticate user anonymously for public data access
+                await signInAnonymously(window.auth);
+                console.log("Firebase initialized and authenticated anonymously.");
             } catch (error) {
                 console.error("Error initializing Firebase or authenticating:", error);
                 document.getElementById('messageBox').textContent = "Failed to initialize the application. Please try again later. Error: " + error.message;
@@ -226,8 +236,10 @@
          * @param {string} base64Image - The base64 encoded image data.
          */
         async function uploadThumbnailAndGenerateLink(base64Image) {
+            // Wait for Firebase to be initialized if it's not already
             if (!window.db || !window.appId) {
-                showMessage("Database not initialized. Please refresh and try again.", true);
+                showMessage("Database not initialized. Please wait or refresh.", true);
+                // Potentially retry or add a loading state check
                 return;
             }
 
